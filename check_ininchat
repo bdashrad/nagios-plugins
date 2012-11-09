@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Nagios exit codes
+E_SUCCESS="0"
+E_WARNING="1"
+E_CRITICAL="2"
+E_UNKNOWN="3"
+
+# Settings
+host="$1"
+starturl="http://$host/I3Root/default.htm"
+desturl="http://$host/websvc/util?a=diagnostics"
+
+checkCurl () {
+	if [ "$1" -ne "0" ]; then
+		case "$1" in
+		1)	echo "$1: Unsupported protocol. This build of curl has no support for this protocol.";;
+		2)	echo "$1: Failed to initialize.";;
+		3)	echo "$1: URL malformed. The syntax was not correct.";;
+		6)	echo "$1: Couldn't resolve host. The given remote host was not resolved.";;
+		7)	echo "$1: Failed to connect to host.";;
+		22)	echo "$1: HTTP page not retrieved. The requested url was not found or returned another error with the HTTP error code being 400 or above.";;
+		23)	echo "$1: Write error. Curl couldn't write data to a local filesystem or similar.";;
+		26)	echo "$1: Read error. Various reading problems.";;
+		27)	echo "$1: Out of memory. A memory allocation request failed.";;
+		28)	echo "$1: Operation timeout. The specified time-out period was reached according to the conditions.";;
+		34)	echo "$1: HTTP post error. Internal post-request generation error.";;
+		37)	echo "$1: FILE couldn't read file. Failed to open the file. Permissions?";;
+		47)	echo "$1: Too many redirects. When following redirects, curl hit the maximum amount.";;
+		52)	echo "$1: The server didn't reply anything, which here is considered an error.";;
+		55)	echo "$1: Failed sending network data.";;
+		56)	echo "$1: Failure in receiving network data.";;
+		78)	echo "$1: The resource referenced in the URL does not exist.";;
+		*)	echo "curl exited with unknown error code: $1";;
+		esac
+		exit "${E_CRITICAL}"
+	fi
+}
+
+curl --fail -L --silent \
+	-X 'POST' \
+	  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' \
+	  -H 'Accept-Encoding: gzip, deflate' \
+	  -H 'Accept-Language: en-us,en;q=0.5' \
+	  -H 'Host: 192.168.142.22' \
+	  -H 'Proxy-Connection: keep-alive' \
+	  -H 'Referer: http://192.168.142.22/I3Root/' \
+	  -H 'User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:11.0) Gecko/20100101 Firefox/11.0' \
+	  -H 'Content-Length: 0' \
+	  --cookie 'IWEBDEMO_QUEUE=iType|chat^iImp|dhtml^iQueue|Workgroup%20Queue%3AMarketing^doEmbed|false^doApplet|false^doHTML|true^doDebug|false' \
+	  -b /var/tmp/inin_cookies.txt \
+	  -o /var/tmp/ininchk.html \
+	"${desturl}"
+
+checkCurl $?
+
+if grep -q "Connected" /var/tmp/ininchk.html 
+then
+	rm /var/tmp/ininchk.html
+	echo "String 'Connected' found."
+	exit ${E_SUCCESS}
+else
+	rm /var/tmp/ininchk.html
+	echo "String 'Connected' not found."
+	exit ${E_CRITICAL}
+fi
+

@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# check_apc
+# Written by Brad Clark
+#
+# Checks APC UPS
+#
+
+progname=check_apc
+version=0.3
+author="Brad Clark"
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 -H host -C community [-w warning] [-c critical]"
+	exit
+fi
+
+snmpget="/usr/bin/snmpget"
+community="public"
+snmpversion=1
+warn=85
+crit=95
+
+# nagios return values
+export STATE_OK=0
+export STATE_WARNING=1
+export STATE_CRITICAL=2
+export STATE_UNKNOWN=3  
+export STATE_DEPENDENT=4
+
+while getopts ":H:C:w:c:" opt; do
+	case $opt in
+	H) host=$OPTARG ;;
+	C) community=$OPTARG ;;
+	w) warn=$OPTARG ;;
+	c) crit=$OPTARG ;;
+	\?)
+		echo "Invalid option: -$OPTARG" >&2
+		echo "Usage: $0 -H host -C community [-w warning] [-c critical]"
+		exit
+	;;
+	:)
+		echo "Option -$OPTARG requires an argument" >&2
+		exit
+	;;
+	esac
+done
+
+oid=uioSensorStatusTemperatureDegF.2.1
+
+# temperature values for warning or critical / hdd (from datasheet)
+MAXTEMPCRIT=$crit
+MINTEMPCRIT="55"
+MAXTEMPWARN=$warn
+MINTEMPWARN="60"
+                                        
+# check temperature for warning or critical values
+function checkTemperature () {
+
+        true=$(echo "$1 >= $MAXTEMPWARN" | bc)
+                if [ $true = 1 ] ; then
+                        returnValue=$STATE_WARNING ;
+                fi
+
+        true=$(echo "$1 >= $MAXTEMPCRIT" | bc)
+                if [ $true = 1 ] ; then
+                        returnValue=$STATE_CRITICAL ;
+                fi
+
+        true=$(echo "$1 <= $MINTEMPWARN" | bc)
+                if [ $true = 1 ] ; then
+                        returnValue=$STATE_WARNING ;
+                fi
+
+        true=$(echo "$1 <= $MINTEMPCRIT" | bc)
+                if [ $true = 1 ] ; then
+                        returnValue=$STATE_CRITICAL ;
+                fi
+        return $returnValue
+}
+
+NAME=`snmpwalk -v1 -c XaZG1Xvw 10.202.205.90 uioSensorStatusSensorLocation.2.1 | awk '{print $4 " " $5}' | tr -d '"'`
+TEMP=`snmpget -v1 -c $community $host $oid | awk '{print $4}'`
+checkTemperature $TEMP
+intReturn=$?
+outMessage="$NAME: $TEMP°F | '$NAME °F'=$TEMP;$warn;$crit" ;
+
+echo -e $outMessage
+exit $intReturn
