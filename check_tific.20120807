@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# check_tific_auth
+# Written by Brad Clark
+#
+# Checks a TiFiC server instance that requires username and password authorization.
+#
+
+progname=check_tific_auth
+version=0.1
+author="Brad Clark"
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 ip vhost [username] [password]"
+	exit
+fi
+
+checkhttp="/usr/local/icinga/libexec/check_http"
+ipaddr=$1
+vhost=$2
+username=$3
+password=$4
+
+useragent="TiFiC Client"
+url="/fcgi-bin/tific.fcg?func=server.ping"
+#url="/fcgi-bin/tific.fcg?func=server.ping&readCacheBlock=1"
+
+if [ ! -n "$username" ]; then
+#	echo "No username provided. Assuming no auth required."
+	$checkhttp -s pong -A "$useragent" -u "$url" -H $vhost -I $ipaddr
+
+elif [ ! -n "$password" ]; then
+#	echo "No password provided."
+	exit 1
+else
+	$checkhttp -s pong -A "$useragent" -u "$url" -H $vhost -I $ipaddr -a $username:$password
+fi

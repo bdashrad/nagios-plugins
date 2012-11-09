@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# check_tific_auth
+# Written by Brad Clark
+#
+# Checks a TiFiC server instance that requires username and password authorization.
+#
+
+progname=check_tific_int
+version=0.1
+author="Brad Clark"
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 -i ip -h vhost -p [port] -U [username] -P [password]"
+	exit
+fi
+
+port=80
+checkhttp="/usr/local/icinga/libexec/check_http"
+useragent="TiFiC Client"
+dbcheck=0
+
+while getopts ":i:h:p:U:P:D" opt; do
+	case $opt in
+	i) ipaddr=$OPTARG ;;
+	h) vhost=$OPTARG ;;
+	p) port=$OPTARG ;;
+	U) username=$OPTARG ;;
+	P) password=$OPTARG ;;
+	D) dbcheck=1 ;;
+	\?)
+		echo "Invalid option: -$OPTARG" >&2
+		echo "Usage: $0 -i ip -h vhost [-p port] [-D] [-u username] [-p password]"
+		exit
+	;;
+	:)
+		echo "Option -$OPTARG requires an argument" >&2
+		exit
+	;;
+	esac
+done
+
+if [ $dbcheck -eq 1 ]; then
+	url="/fcgi-bin/tific.fcg?func=server.ping&readCacheBlock=1"
+else
+	url="/fcgi-bin/tific.fcg?func=server.ping"
+fi
+
+if [ ! -n "$username" ]; then
+#	echo "No username provided. Assuming no auth required."
+	$checkhttp -s pong -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr
+
+elif [ ! -n "$password" ]; then
+#	echo "No password provided."
+	exit 1
+else
+	$checkhttp -s pong -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr -a $username:$password
+fi

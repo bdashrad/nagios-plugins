@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# check_snmp_load
+# v 0.1
+# Brad Clark 10/23/2012
+# Returns Load1,Load5,Load15 via SNMP with Performance Data for Nagios
+
+progname=check_snmp_load
+version=0.1
+author="Brad Clark"
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $0 -H host -C community [-w warning] [-c critical]"
+	exit
+fi
+
+snmpget="/usr/bin/snmpget"
+community="public"
+snmpversion=2c
+warn=85
+crit=95
+
+# nagios return values
+export STATE_OK=0
+export STATE_WARNING=1
+export STATE_CRITICAL=2
+export STATE_UNKNOWN=3  
+export STATE_DEPENDENT=4
+
+while getopts ":H:C:w:c:" opt; do
+	case $opt in
+	H) host=$OPTARG ;;
+	C) community=$OPTARG ;;
+	w) warn=$OPTARG ;;
+	c) crit=$OPTARG ;;
+	\?)
+		echo "Invalid option: -$OPTARG" >&2
+		echo "Usage: $0 -H host -C community [-w warning] [-c critical]"
+		exit
+	;;
+	:)
+		echo "Option -$OPTARG requires an argument" >&2
+		exit
+	;;
+	esac
+done
+
+oid=.1.3.6.1.4.1.2021.10.1.3
+
+IFS=';'
+
+# Get warning levels
+WARNS=( $warn )
+
+# Get critical levels
+CRITS=( $crit )
+
+function checkLoad () {
+	true=$(echo "$1 >= $2" | bc)
+		if [ $true = 1 ] ; then
+			returnValue=$STATE_WARNING ;
+		fi
+	true=$(echo "$1 >= $3" | bc)
+		if [ $true = 1 ] ; then
+			returnValue=$STATE_CRITICAL ;
+		fi
+	return $returnValue
+}
+
+IFS=$'\n'
+LOAD=`snmpwalk $host -Os -v $snmpversion -c $community $oid | awk '{print $4}'`
+LOADS=( $LOAD )
+
+wstatus=0
+cstats=0
+
+for x in {0..2}
+do
+	checkLoad ${LOADS[$x]} ${WARNS[$x]} ${CRITS[$x]}
+	chkReturn=$?
+	check=$(echo "$chkReturn == $STATE_WARNING" | bc)
+		if [ $check = 1 ] ; then
+			wstatus=1
+		fi
+	check=$(echo "$chkReturn == $STATE_CRITICAL" | bc)
+		if [ $true = 1 ] ; then
+			cstatus=1
+		fi
+done
+
+outMessage="load average: ${LOADS[0]} ${LOADS[1]} ${LOADS[2]}|'load1'=${LOADS[0]};${WARNS[0]};${CRITS[0]}; 'load5'=${LOADS[1]};${WARNS[1]};${CRITS[1]}; 'load15'=${LOADS[2]};${WARNS[2]};${CRITS[2]};" 
+
+if [ "$cstatus" = "1" ] ; then
+	intReturn=$STATE_CRITICAL
+	outMessage="CRITICAL - "$outMessage
+elif [ "$wstatus" = "1" ] ; then
+	intReturn=$STATE_WARNING
+	outMessage="WARNING - "$outMessage
+else
+	intReturn=$STATE_OK
+	outMessage="OK - "$outMessage
+fi	
+
+echo -e $outMessage
+exit $intReturn
+
