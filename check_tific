@@ -7,11 +7,11 @@
 #
 
 progname=check_tific
-version=1.0
+version=2.0
 author="Brad Clark"
 
 if [ $# -lt 1 ]; then
-	echo "Usage: $0 -i ip -h vhost -p [port] -U [username] -P [password] [-D]"
+	echo "Usage: $0 -i ip -h vhost [-p port] [-U username] [-P password] [-D] [-S]"
 	exit
 fi
 
@@ -19,8 +19,11 @@ port=80
 checkhttp="/usr/local/icinga/libexec/check_http"
 useragent="TiFiC Client"
 dbcheck=0
+statuschk=0
+resp="OK"
+url="/fcgi-bin/tific.fcg?func=server.status"
 
-while getopts ":i:h:p:U:P:D" opt; do
+while getopts ":i:h:p:U:P:DS" opt; do
 	case $opt in
 	i) ipaddr=$OPTARG ;;
 	h) vhost=$OPTARG ;;
@@ -28,9 +31,10 @@ while getopts ":i:h:p:U:P:D" opt; do
 	U) username=$OPTARG ;;
 	P) password=$OPTARG ;;
 	D) dbcheck=1 ;;
+	S) statuschk=1 ;;
 	\?)
 		echo "Invalid option: -$OPTARG" >&2
-		echo "Usage: $0 -i ip -h vhost [-p port] [-D] [-u username] [-p password]"
+		echo "Usage: $0 -i ip -h vhost [-p port] [-D] [-S] [-u username] [-p password]"
 		exit
 	;;
 	:)
@@ -40,19 +44,22 @@ while getopts ":i:h:p:U:P:D" opt; do
 	esac
 done
 
-if [ $dbcheck -eq 1 ]; then
-	url="/fcgi-bin/tific.fcg?func=server.ping&readCacheBlock=1"
-else
-	url="/fcgi-bin/tific.fcg?func=server.ping"
+if [ $statuschk -eq 1 ]; then
+	if [ $dbcheck -eq 1 ]; then
+		url="/fcgi-bin/tific.fcg?func=server.ping&readCacheBlock=1"
+	else
+		url="/fcgi-bin/tific.fcg?func=server.ping"
+	fi
+	resp="pong"
 fi
 
 if [ ! -n "$username" ]; then
 #	echo "No username provided. Assuming no auth required."
-	$checkhttp -s pong -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr
+	$checkhttp -s $resp -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr
 
 elif [ ! -n "$password" ]; then
 #	echo "No password provided."
 	exit 1
 else
-	$checkhttp -s pong -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr -a $username:$password
+	$checkhttp -s $resp -p $port -A "$useragent" -u "$url" -H $vhost -I $ipaddr -a $username:$password
 fi
