@@ -1,0 +1,79 @@
+#!/bin/bash
+# Checks if BIG-IP LTM is Active or Failover
+
+# Configuration
+snmpget="/usr/bin/snmpget"
+community="m0nit0r"
+snmpversion=2c
+
+# nagios return values
+export STATE_OK=0
+export STATE_WARNING=1
+export STATE_CRITICAL=2
+export STATE_UNKNOWN=3  
+export STATE_DEPENDENT=4
+
+if [ $# -lt 1 ]; then
+        echo "Usage: $0 -H host -C community -S (a|s)"
+        exit
+fi
+
+while getopts ":H:C:S:" opt; do
+	case $opt in
+	H) host=$OPTARG ;;
+	C) community=$OPTARG ;;
+	S) expected=$OPTARG ;;
+	\?)
+		echo "Invalid option: -$OPTARG" >&2
+		echo "Usage: $0 -H host -C community [-w warning] [-c critical]"
+		exit
+	;;
+	:)
+		echo "Option -$OPTARG requires an argument" >&2
+		exit
+	;;
+	esac
+done
+
+oid=1.3.6.1.4.1.3375.2.1.1.1.1.19.0
+
+case $expected in
+	active)
+		expectedStatus=3
+	;;
+	standby)
+		expectedStatus=0
+	;;
+	*)
+		echo "Expected Status must be 'active' or 'standby'"
+		exit
+	;;
+esac
+
+STATUS=`snmpget -Ov -v 2c -c $community $host $oid | awk '{print $2}'`
+
+case $STATUS in
+	0)
+		status="standby"
+	;;
+	1)
+		status="active-1"
+	;;
+	2)
+		status="active-2"
+	;;
+	3)
+		status="active"
+	;;
+esac
+
+true=$(echo "$STATUS != $expectedStatus" | bc)
+	if [ $true = 1 ] ; then
+		returnValue=$STATE_WARNING ;
+	fi
+
+outMessage="Current State: ${status} - Expected: ${expected} | 'Status'=$STATUS"  
+
+echo -e $outMessage
+exit $returnValue
+

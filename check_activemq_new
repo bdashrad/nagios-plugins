@@ -12,7 +12,7 @@ my $host=$ARGV[0];
 my $login='client';
 my $pass='mypass';
 #my $queue='/queue/nagiosTestQueue';
-my $queue='/queue/icingaTestQueue';
+my $queue='/queue/aaaaaaTestQueue';
 my %error=('ok'=>0,'warning'=>1,'critical'=>2);
 my ($exitcode, $evalcount);
 
@@ -35,9 +35,22 @@ my ($exitcode, $evalcount);
               body        => "$time"
             }
         );
+
+	$stomp->disconnect;
+
+	#sleep(10);
        
+        # Connect to the broker.
+        my $stompRead = Net::Stomp->new(
+            { hostname => "$host",
+              port     => '61613',
+		timeout => "5"
+            }
+        );
+
+	$stompRead->connect();
         # Subscribe to messages from the $queue.
-        $stomp->subscribe(
+        $stompRead->subscribe(
             { destination             => "$queue",
               'ack'                   => 'client',
               'activemq.prefetchSize' => 1
@@ -45,13 +58,13 @@ my ($exitcode, $evalcount);
         );
 
         # Wait max 5 seconds for message to appear.
-        my $can_read = $stomp->can_read({ timeout => "5" });
+        my $can_read = $stompRead->can_read({ timeout => "5" });
         my $tries = 2;
 	while($tries--){
         if ( $can_read ) {
             # There is a message to collect.
-            my $frame = $stomp->receive_frame;
-            $stomp->ack( { frame => $frame } );
+            my $frame = $stompRead->receive_frame;
+            $stompRead->ack( { frame => $frame } );
             my $framebody=$frame->body;
 
             if ( $framebody eq "$time" ) {
@@ -72,7 +85,7 @@ my ($exitcode, $evalcount);
 	}
         # Whatever the outcome, we have managed to connect to given broker.
         # There's no need to try the other.
-        $stomp->disconnect;
+        $stompRead->disconnect;
         exit $error{"$exitcode"};
 #    };
     # $@ contains error message from eval() which means the execution

@@ -1,34 +1,31 @@
 #!/usr/bin/perl
-# http://it.toolbox.com/blogs/unix-sysadmin/monitoring-activemq-from-nagios-27743
-# modified by brad clark 2/28/2012
-# bclark@plumchoice.com
 
 use strict;
 use Net::Stomp;
 
 my $time=time;
-#my @hosts=qw /172.16.166.101 172.16.166.102/;
-my $host=$ARGV[0];
+my @hosts=qw /172.16.166.101 172.16.166.102/;
 my $login='client';
 my $pass='mypass';
-#my $queue='/queue/nagiosTestQueue';
-my $queue='/queue/icingaTestQueue';
+my $queue='/queue/nagiosTestQueue';
 my %error=('ok'=>0,'warning'=>1,'critical'=>2);
 my ($exitcode, $evalcount);
 
 # Tryout each broker in the @hosts array
-#foreach ( @hosts ) {
-#    eval {
+foreach ( @hosts ) {
+    eval {
         # Connect to the broker.
         my $stomp = Net::Stomp->new(
-            { hostname => "$host",
-              port     => '61613',
-		timeout => "5"
+            { hostname => "$_",
+              port     => '61613'
             }
         );
-
 	$stomp->connect();
-
+#        $stomp->connect(
+#            { login    => "$login",
+#              passscode => "$pass"
+#            }
+#        );
         # Send test message containing $time timestamp.
         $stomp->send( 
             { destination => "$queue",
@@ -43,11 +40,8 @@ my ($exitcode, $evalcount);
               'activemq.prefetchSize' => 1
             }
         );
-
         # Wait max 5 seconds for message to appear.
         my $can_read = $stomp->can_read({ timeout => "5" });
-        my $tries = 2;
-	while($tries--){
         if ( $can_read ) {
             # There is a message to collect.
             my $frame = $stomp->receive_frame;
@@ -57,7 +51,6 @@ my ($exitcode, $evalcount);
             if ( $framebody eq "$time" ) {
                 print "OK: Message received\n";
                 $exitcode="ok";
-		$tries = 0;
             }
             else {
                 print "WARNING: Incorrect message body; is $framebody, should be $time\n";
@@ -69,16 +62,15 @@ my ($exitcode, $evalcount);
             print "CRITICAL: Timed out while trying to collect the message\n";
             $exitcode="critical";
         }
-	}
         # Whatever the outcome, we have managed to connect to given broker.
         # There's no need to try the other.
         $stomp->disconnect;
         exit $error{"$exitcode"};
-#    };
+    };
     # $@ contains error message from eval() which means the execution
     # of eval() block did not succeed.
-#    ++$evalcount if $@;
-#}
+    ++$evalcount if $@;
+}
 
-print "CRITICAL: No connection to ActiveMQ\n";
+print "CRITICAL: No connection to ActiveMQ; tried $evalcount out of " . @hosts . " brokers\n";
 exit $error{"critical"};

@@ -6,12 +6,12 @@
 # Checks a TiFiC server instance that requires username and password authorization.
 #
 
-progname=check_tific_int
-version=0.1
+progname=check_tific
+version=1.0
 author="Brad Clark"
 
 if [ $# -lt 1 ]; then
-	echo "Usage: $0 -i ip -h vhost -p [port] -U [username] -P [password]"
+	echo "Usage: $0 -i ip -h vhost -p [port] -U [username] -P [password] [-D]"
 	exit
 fi
 
