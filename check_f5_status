@@ -3,7 +3,7 @@
 
 # Configuration
 snmpget="/usr/bin/snmpget"
-community="m0nit0r"
+community=""
 snmpversion=2c
 
 # nagios return values
@@ -14,7 +14,7 @@ export STATE_UNKNOWN=3
 export STATE_DEPENDENT=4
 
 if [ $# -lt 1 ]; then
-        echo "Usage: $0 -H host -C community -S (a|s)"
+        echo "Usage: $0 -H host -C community -S (active|standby)"
         exit
 fi
 
@@ -67,10 +67,9 @@ case $STATUS in
 	;;
 esac
 
-true=$(echo "$STATUS != $expectedStatus" | bc)
-	if [ $true = 1 ] ; then
-		returnValue=$STATE_WARNING ;
-	fi
+if [ "$STATUS" -ne "$expectedStatus" ]; then
+	returnValue=$STATE_WARNING ;
+fi
 
 outMessage="Current State: ${status} - Expected: ${expected} | 'Status'=$STATUS"  
 
